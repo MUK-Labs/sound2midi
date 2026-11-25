@@ -1,10 +1,53 @@
 # sound2midi
 
-A small Python prototype that listens continuously to an audio input and sends approximate polyphonic MIDI notes. On macOS, BlackHole can feed it whatever your computer is playing: browser audio, a music player, or a recording.
+A live audio-to-MIDI tool with a browser interface and a separate Python command-line option. Choose an audio input, adjust the sensitivity, and watch the detected notes in a scrolling piano roll. On macOS, BlackHole can feed it whatever your computer is playing: browser audio, a music player, or a recording.
+
+**[Open sound2midi](https://muk-labs.github.io/sound2midi/)**
 
 This is a reactive pitch detector for experimentation, live electronics, and visuals. It will miss notes and sometimes interpret harmonics as notes. It does not reconstruct separate instrumental parts or produce a polished transcription.
 
-## Quick start on macOS
+## Browser interface
+
+The browser version runs locally on your computer: no Python, server connection, model download, or audio upload is needed. It uses Web Audio for capture and a worker for approximate pitch detection. The Python program is an independent option, not a background service required by the page. Both engines use harmonic analysis, but their numerical implementations differ; identical output is not guaranteed.
+
+Use a recent desktop Chrome or Edge for the most straightforward audio/MIDI setup. If Web MIDI is unavailable, the page can still show detected notes without sending MIDI. Capture and MIDI require browser permission and a secure page: GitHub Pages provides HTTPS, and `http://localhost` also works for development. Opening `index.html` directly as a local file is not supported.
+
+### Start listening
+
+1. For computer audio on macOS, install [BlackHole 2ch](https://existential.audio/blackhole/) and follow [the routing instructions below](#route-computer-audio-into-the-detector). You can also use a microphone or an audio-interface input.
+2. Open [the app](https://muk-labs.github.io/sound2midi/) and click **Enable audio**. Allow the browser's microphone/input permission, then choose **BlackHole 2ch** or another input. The permission may be called “microphone” even when you select a virtual system-audio device.
+3. For MIDI, click **Enable MIDI**, grant access, and choose a destination. You can leave MIDI disabled and use the piano roll on its own.
+4. Click **Start listening** and play music. Raise **Sensitivity** to admit more notes; lower it to keep fewer, stronger detections. Adjust the maximum number of notes and MIDI channel as needed.
+5. Click **Stop** to end capture and send Note Off for notes the app started.
+
+**Try demo** runs silent, generated test tones through the same browser detector and displays the results. It does not capture your microphone or send external MIDI. Use it to check the interface before configuring audio routing.
+
+The page remembers control/device selections in this browser's local storage. Permissions are managed separately by the browser; they are requested through explicit actions and may need to be granted again. Device identifiers can change after reconnection or between browsing sessions.
+
+### Send browser MIDI to Max or a DAW on macOS
+
+Web MIDI can select existing ports, but cannot create the Python program's **System Audio MIDI** virtual port. For browser-to-application routing, use an IAC bus:
+
+1. Open **Audio MIDI Setup**, choose **Window > Show MIDI Studio**, and open **IAC Driver**.
+2. Enable **Device is online** and add a bus if none exists, then apply the changes.
+3. In sound2midi, enable MIDI and choose that IAC bus as the **MIDI output**.
+4. In Max, select the same bus as an input and receive with `notein`. In a DAW, enable the bus as an input and monitor an instrument track receiving from it.
+
+See [Apple's IAC setup guide](https://support.apple.com/guide/audio-midi-setup/transfer-midi-information-between-apps-ams1013/mac). Hardware MIDI outputs already exposed to the browser can also be selected.
+
+If the generated MIDI plays a software synthesizer, send that synthesizer's audio **directly to your physical speakers/interface**, while the source recording uses the Multi-Output Device. Otherwise its sound is fed back into the detector. The browser app itself does not monitor the captured audio back to your speakers.
+
+### Browser troubleshooting
+
+- **No named audio inputs:** click **Enable audio** and allow input access. Check the browser's site permissions if it was previously denied.
+- **BlackHole is absent:** install it, restart the browser if needed, and check that macOS lists it as an input device.
+- **The input is silent:** confirm the source application uses the Multi-Output Device, and sound2midi receives BlackHole. Selecting a physical microphone does not capture system audio.
+- **No MIDI ports:** enable MIDI permission and activate an IAC bus, or connect a MIDI device. The browser cannot create a virtual output itself.
+- **MIDI is unsupported:** use the piano roll in visual-only mode or switch to a desktop browser with Web MIDI support.
+- **The receiving instrument is silent:** check the selected output bus, MIDI channel, and the receiving application's track monitoring.
+- **Too many or unstable notes:** lower Sensitivity or reduce the maximum notes. This is an approximation; dense mixes and percussion can still generate wrong notes.
+
+## Python option: quick start on macOS
 
 You need Python 3.10 or later and [BlackHole 2ch](https://existential.audio/blackhole/). Install these separately if necessary. The launcher installs the Python packages into a virtual environment inside this folder; it does not change your audio routing or install BlackHole.
 
@@ -42,7 +85,7 @@ If the MIDI drives a software synthesizer, route that application's audio **dire
 
 The script itself does not play, record, or upload audio. It listens to the chosen input and generates MIDI. Apps that use a different output device will not be captured by this routing.
 
-## Controls
+## Python controls
 
 Pass options to the launcher; they are forwarded to the Python script:
 
@@ -82,7 +125,7 @@ Start with the defaults. For quicker visual reactions, try `--window 2048 --atta
 
 The detector uses spectral harmonic matching, not a trained instrument-separation model. Dense mixes, percussion, distortion, reverberation, quiet inner voices, and deep bass can confuse it. Its default pitch range deliberately omits deep bass. Extending that range does not guarantee that low notes will be resolved. Output uses equal-tempered semitone pitches; there are no pitch bends or separate instrument channels. Repeated strikes of a pitch that remains active are generally treated as one sustained note.
 
-## Troubleshooting
+## Python troubleshooting
 
 - **No input level:** check the Mac's output routing and select BlackHole as the script's input. If macOS requests microphone access for Terminal/Python, allow it so the input stream can open.
 - **No audible source music:** ensure the Multi-Output Device includes your physical output. To return to normal routing, select your usual speakers/interface in Sound settings.
@@ -93,7 +136,25 @@ The detector uses spectral harmonic matching, not a trained instrument-separatio
 - **Installation fails:** ensure the selected `python3` is version 3.10 or newer. The launcher prints dependency errors; resolve those before trying to capture audio.
 - **Linux reports `PortAudio library not found`:** install the system PortAudio library (for example `libportaudio2` on Ubuntu). The macOS sounddevice distribution normally bundles PortAudio. This guide's system-audio routing instructions target macOS.
 
-## Validation
+## Development and validation
+
+GitHub Pages serves the repository root: configure **Deploy from a branch**, **main**, and **/ (root)**. `index.html` and `web/` are static files; no build step is required. The Python files can remain in the same repository but are not executed by Pages.
+
+For a local browser preview, run from the repository root:
+
+```bash
+python3 -m http.server 8000
+```
+
+Open **http://localhost:8000** rather than the file itself. Audio and MIDI permissions still apply. The preview server serves the files only; audio analysis happens in the browser.
+
+Run browser-engine and MIDI regression tests with Node.js 22 or later:
+
+```bash
+node --test web/*.test.mjs
+```
+
+These cover the browser detector and note/MIDI lifecycle with synthetic or simulated inputs. They do not establish actual system-audio latency, real-music accuracy, or hardware MIDI delivery. The GitHub Actions workflow runs the JavaScript checks and the Python checks below.
 
 Twelve automated checks cover synthetic pitches with different timbres/levels, a triad, octave pairs, silence/noise, antiphase stereo, streamed chord attacks/stops, note persistence/release, polyphony limits, cleanup after a failed MIDI send, and bounded capture buffering. Run them with:
 
@@ -103,12 +164,13 @@ Twelve automated checks cover synthetic pitches with different timbres/levels, a
 
 These are regression checks, not a real-music accuracy benchmark. This prototype has not been tested on your Mac or with its live audio/MIDI routing. Detection quality and end-to-end delay should be assessed with the music and receiving application you intend to use.
 
-Implementation: stereo spectral-power combination; Hann-windowed FFT; joint nonnegative fitting of three harmonic profiles per pitch with a small coefficient penalty; interpolated spectral peaks to support fundamentals; a recent-audio RMS gate and broadband-noise rejection; separate note-on/off thresholds and time holds. The capture ring has fixed size and always serves the latest window. Overruns reset note state instead of accumulating delayed work. On exit, the script sends Note Off for its owned notes without resetting unrelated notes/controllers on a shared MIDI destination.
+Python implementation: stereo spectral-power combination; Hann-windowed FFT; joint nonnegative fitting of three harmonic profiles per pitch with a small coefficient penalty; interpolated spectral peaks to support fundamentals; a recent-audio RMS gate and broadband-noise rejection; separate note-on/off thresholds and time holds. The capture ring has fixed size and always serves the latest window. Overruns reset note state instead of accumulating delayed work. On exit, the script sends Note Off for its owned notes without resetting unrelated notes/controllers on a shared MIDI destination.
 
 ## Dependencies and reference documentation
 
+- The browser app uses native Web Audio, AudioWorklet, Web Workers, Canvas, and [Web MIDI](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API). Its source is in `index.html` and `web/`.
 - [NumPy](https://numpy.org/) and [SciPy](https://scipy.org/): numerical analysis.
 - [python-sounddevice](https://python-sounddevice.readthedocs.io/): continuous audio input.
 - [Mido / RtMidi](https://mido.readthedocs.io/en/stable/backends/rtmidi.html): MIDI output and virtual ports.
 
-No model download is required. Dependencies are listed in `requirements.txt`.
+No model download is required. Python dependencies are listed in `requirements.txt`.
