@@ -24,6 +24,19 @@ Use a recent desktop Chrome or Edge for the most straightforward audio/MIDI setu
 
 The page remembers control/device selections in this browser's local storage. Permissions are managed separately by the browser; they are requested through explicit actions and may need to be granted again. Device identifiers can change after reconnection or between browsing sessions.
 
+### Share a detection setup
+
+Set the maximum simultaneous notes and sensitivity in the URL, for example:
+
+**[4 notes, 60% sensitivity](https://muk-labs.github.io/sound2midi/?notes=4&sensitivity=60)**
+
+| Parameter | Values | Meaning |
+| --- | --- | --- |
+| `notes` | Integer from `1` to `12` | Maximum simultaneous detected notes. |
+| `sensitivity` | Integer from `0` to `100` | Sensitivity percentage, matching the slider. |
+
+URL settings take priority over saved preferences. Missing or invalid values fall back to the saved setting, or to the defaults of 6 notes and 75%. The address bar updates when you adjust either control, so copy or bookmark the current URL to reproduce the setup. Other URL parameters and the fragment are preserved. Links configure detection only; audio and MIDI still require the usual Enable/Start actions.
+
 ### Send browser MIDI to Max or a DAW on macOS
 
 Web MIDI can select existing ports, but cannot create the Python program's **System Audio MIDI** virtual port. For browser-to-application routing, use an IAC bus:

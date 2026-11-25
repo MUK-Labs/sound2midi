@@ -7,16 +7,30 @@ const storageKey='sound2midi.browser.v1';
 let preferences={};
 try { preferences=JSON.parse(localStorage.getItem(storageKey)||'{}'); } catch {}
 if (!preferences || typeof preferences!=='object') preferences={};
+const urlSettings=new URLSearchParams(window.location.search);
+function integerSetting(value,min,max,fallback){
+  if((typeof value!=='string'&&typeof value!=='number')||String(value).trim()==='')return fallback;
+  const number=Number(value);
+  return Number.isInteger(number)&&number>=min&&number<=max?number:fallback;
+}
+function updateSettingsUrl(){
+  const url=new URL(window.location.href);
+  url.searchParams.set('notes',ui.polyphony.value);
+  url.searchParams.set('sensitivity',ui.sensitivity.value);
+  // Keep the current link shareable without adding browser history entries.
+  if(url.href!==window.location.href)window.history.replaceState(window.history.state,'',url);
+}
 function remember() {
   preferences={audio:ui['audio-input'].value,midi:ui['midi-output'].value,channel:Number(ui['midi-channel'].value),sensitivity:Number(ui.sensitivity.value),polyphony:Number(ui.polyphony.value),span:Number(ui['time-span'].value)};
   try { localStorage.setItem(storageKey,JSON.stringify(preferences)); } catch {}
 }
 for(let channel=1;channel<=16;channel++) ui['midi-channel'].add(new Option(String(channel),String(channel)));
 ui['midi-channel'].value=String(preferences.channel>=1&&preferences.channel<=16?preferences.channel:1);
-ui.sensitivity.value=String(Number.isFinite(preferences.sensitivity)?preferences.sensitivity:75);
-ui.polyphony.value=['1','2','4','6','8','12'].includes(String(preferences.polyphony))?String(preferences.polyphony):'6';
+ui.sensitivity.value=String(integerSetting(urlSettings.get('sensitivity'),0,100,integerSetting(preferences.sensitivity,0,100,75)));
+ui.polyphony.value=String(integerSetting(urlSettings.get('notes'),1,12,integerSetting(preferences.polyphony,1,12,6)));
 ui['time-span'].value=['8','12','20'].includes(String(preferences.span))?String(preferences.span):'12';
 ui['sensitivity-value'].value=`${ui.sensitivity.value}%`;
+updateSettingsUrl();
 
 let mode='idle', session=0, context=null, stream=null, source=null, capture=null, worker=null, midiAccess=null;
 let active=[], history=[], held=new Map(), frozenTime=0, hasFrames=false, demoTimer=null, demoNodes=new Set(), audioBusy=false, lastResult=0, watchdog=null;
@@ -98,6 +112,7 @@ ui['audio-input'].onchange=async()=>{remember();if(mode==='live'){await stop();a
 for(const id of ['sensitivity','polyphony'])ui[id].addEventListener('input',()=>{
   ui['sensitivity-value'].value=`${ui.sensitivity.value}%`;remember();worker?.postMessage({type:'configure',settings:settings()});
 });
+for(const id of ['sensitivity','polyphony'])ui[id].addEventListener('change',updateSettingsUrl);
 ui['time-span'].onchange=()=>{remember();draw();};
 $('help-button').onclick=()=>{const guide=$('setup-guide');guide.hidden=!guide.hidden;$('help-button').setAttribute('aria-expanded',String(!guide.hidden));};
 
