@@ -24,8 +24,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+      - name: Prepare headless Linux audio
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libportaudio2 pulseaudio pulseaudio-utils
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=sound2midi_ci
+          pactl set-default-sink sound2midi_ci
+          pactl set-default-source sound2midi_ci.monitor
+          pactl info
       - run: python -m pip install -r requirements.txt
       - run: python -c "import sounddevice, mido, rtmidi"
       - run: python -m unittest discover -v

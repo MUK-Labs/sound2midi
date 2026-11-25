@@ -20,7 +20,10 @@ ui['sensitivity-value'].value=`${ui.sensitivity.value}%`;
 
 let mode='idle', session=0, context=null, stream=null, source=null, capture=null, worker=null, midiAccess=null;
 let active=[], history=[], held=new Map(), frozenTime=0, hasFrames=false, demoTimer=null, demoNodes=new Set(), audioBusy=false, lastResult=0, watchdog=null;
-const midi=new MidiRouter(()=>message('MIDI output became unavailable. Check the connection, then select the output again.',true));
+const midi=new MidiRouter(()=>{
+  ui['midi-output'].value='';remember();
+  message('MIDI output failed and is now off. Check the connection, release any held notes in the receiving app, then select the output again.',true);
+});
 function message(text,error=false){ui.message.textContent=text;ui.message.classList.toggle('error',error);}
 function status(label,state='idle'){ui['status-label'].textContent=label;ui['status-badge'].dataset.state=state;}
 function settings(){return {threshold:sensitivityThreshold(Number(ui.sensitivity.value)),polyphony:Number(ui.polyphony.value),attackMs:20,releaseMs:80,gateDb:-48};}
@@ -119,14 +122,14 @@ async function stop(text){
   clearInterval(demoTimer);clearInterval(watchdog);demoTimer=watchdog=null;
   for(const node of demoNodes){try{node.stop();node.disconnect();}catch{}}demoNodes.clear();
   for(const rect of held.values())rect.end=stamp;held.clear();
-  frozenTime=stamp;active=[];midi.release();
+  frozenTime=stamp;active=[];const released=midi.release();
   const oldContext=context;context=null;
   stream?.getTracks().forEach(track=>track.stop());stream=null;
   source?.disconnect();source=null;capture?.disconnect();capture=null;
   worker?.terminate();worker=null;
   ui['level-fill'].style.width='0%';ui['level-value'].textContent='— dB';ui['level-meter'].setAttribute('aria-valuenow','-60');
   status(hasFrames?'Stopped':'Ready');refreshControls();updateNotes();draw();
-  if(text)message(text);
+  if(text&&released)message(text);
   if(oldContext)await oldContext.close().catch(()=>{});
 }
 
@@ -212,7 +215,7 @@ function scheduleDemo(ctx,bus,token){
     }
   };play();demoTimer=setInterval(play,1450);
 }
-ui['start-button'].onclick=()=>mode==='idle'?start('live'):stop('Stopped. All notes sent by this page have been released.');
+ui['start-button'].onclick=()=>mode==='idle'?start('live'):stop('Stopped listening.');
 ui['demo-button'].onclick=()=>start('demo');
 window.addEventListener('pagehide',()=>{midi.release();stop();});
 navigator.mediaDevices?.addEventListener('devicechange',async()=>{
